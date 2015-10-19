@@ -26,19 +26,13 @@
          reservation_type           = undefined
         }).
 
--record(reservation,
+-record(car,
         {
          id,
          n_total                  = 0,
          n_used                   = 0,
          n_free                   = 0,
          price                      = 0
-        }).
-
--record(car,
-        {
-         id,
-         reservation
         }).
 
 -define(d(Format, Args),

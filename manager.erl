@@ -6,7 +6,7 @@
 
          count_contention/1,
 
-         add_reservation/4
+         add_car/4
         ]).
 
 -include("bench.hrl").
@@ -60,27 +60,20 @@ do_populate_car(_Wlock, _, _) ->
     ok.
 
 add_car(Wlock, Id, Num, Price) ->
-    add_reservation(Wlock, Id, Num, Price).
-
-add_reservation(Wlock, Id, Num, Price) ->
     case mnesia:read({car, Id}) =:= [] of
         true ->
             % create new record
-            Reservation = #reservation{id = Id,
-                                       n_total = Num,
-                                       n_used = 0,
-                                       n_free = Num,
-                                       price = Price},
             Car = #car{id = Id, 
-                       reservation = Reservation},
+                       n_total = Num,
+                       n_used = 0,
+                       n_free = Num,
+                       price = Price},
             ?APPLY(mnesia, write, [car, Car, Wlock]);
         false ->
             % update reservation
             Car = mnesia:read({car, Id}),
-            Reservation = Car#car.reservation,
-            Free = Reservation#reservation.n_free,
-            NewCar = #car{id = Id, 
-                       reservation = Reservation#reservation{n_free = Free + Num}},
+            Free = Car#car.n_free,
+            NewCar = #car{n_free = Free + Num},
             ?APPLY(mnesia, write, [car, NewCar, Wlock])
     end.
 
@@ -101,6 +94,9 @@ add_customer(Wlock, Id) ->
     Customer = #customer{id = Id, 
                          reservation_info_list = []},
     ?APPLY(mnesia, write, [customer, Customer, Wlock]).
+
+query_car(Id) ->
+    mnesia:read({car, Id}).
 
 %%% Private
 send_activity(Fun, Args, _Candidates) ->

@@ -46,8 +46,9 @@ client_loop(Monitor, C, SessionTab, _Counters) ->
 %       {_ReplyTo, _Ref, stop} ->
 %           exit(shutdown);
         {'EXIT', Pid, Reason} when Pid == Monitor ->
+            exit(Reason);
+        {'EXIT', Pid, Reason} ->
             exit(Reason)
-%       {'EXIT', Pid, Reason} ->
 %           Node = node(Pid),
 %           ?d("Worker on node ~p(~p) died: ~p~n", [Node, node(), Reason]),
 %           Key = {worker,Node},
@@ -59,17 +60,18 @@ client_loop(Monitor, C, SessionTab, _Counters) ->
 %           generator_loop(Monitor, C, SessionTab, Counters)
     after 0 ->
         Before = erlang:monotonic_time(),
-        gen_trans(C, SessionTab),
-        % mnesia:activity(transaction, Fun, [Wlock], Mod),
+        [mnesia:activity(transaction, gen_trans(C, SessionTab)) ||
+         _ <- lists:seq(1, 100)],
         After = erlang:monotonic_time(),
-        Elapsed = elapsed(Before, After)
+        Elapsed = elapsed(Before, After),
+        ?d("elapsed: ~p~n", [Elapsed])
             %       post_eval(Monitor, C, Elapsed, Res, Name, CommitSessions, SessionTab, Counters)
     end.
 
 gen_trans(C, SessionTab) ->
-    UserTasks   = C#config.n_user_tasks,
-    OtherTasks1 = UserTasks + (100 - UserTasks) / 2,
-    OtherTasks2 = UserTasks + OtherTasks1 + (100 - UserTasks) / 4,
+%   UserTasks   = C#config.n_user_tasks,
+%   OtherTasks1 = UserTasks + (100 - UserTasks) / 2,
+%   OtherTasks2 = UserTasks + OtherTasks1 + (100 - UserTasks) / 4,
 
 %   case rand:uniform(100) of
 %       Rand when Rand > 0,             Rand =<     UserTasks   -> gen_t1(C, SessionTab);
@@ -100,64 +102,37 @@ trans_add_to_item_tables(_C) ->
 trans_make_reservation(C) ->
     Ids     = [rand:uniform(C#config.n_range) || _ <- lists:seq(1, C#config.n_queries)],
     Types   = [rand:uniform(C#config.n_query_types) || _ <- lists:seq(1, C#config.n_queries)],
-    ?d("ids: ~p~n", [Ids]),
-    ?d("types: ~p~n", [Types]).
-    
-%   long maxPrices[NUM_RESERVATION_TYPE] = { -1, -1, -1 };
-%   long maxIds[NUM_RESERVATION_TYPE] = { -1, -1, -1 };
-%   long n;
-%   N_QUERY = rand:uniform(C#config.n_tasks),
-%   long customerId = random_generate(randomPtr) % queryRange + 1;
-%   for (n = 0; n < numQuery; n++) {
-%       types[n] = random_generate(randomPtr) % NUM_RESERVATION_TYPE;
-%       ids[n] = (random_generate(randomPtr) % queryRange) + 1;
-%   }
-%   bool_t isFound = FALSE;
-%   for (n = 0; n < numQuery; n++) {
-%       long t = types[n];
-%       long id = ids[n];
-%       long price = -1;
-%       switch (t) {
-%           case RESERVATION_CAR:
-%               if (MANAGER_QUERY_CAR(managerPtr, id) >= 0) {
-%                   price = MANAGER_QUERY_CAR_PRICE(managerPtr, id);
-%               }
-%               break;
-%           case RESERVATION_FLIGHT:
-%               if (MANAGER_QUERY_FLIGHT(managerPtr, id) >= 0) {
-%                   price = MANAGER_QUERY_FLIGHT_PRICE(managerPtr, id);
-%               }
-%               break;
-%           case RESERVATION_ROOM:
-%               if (MANAGER_QUERY_ROOM(managerPtr, id) >= 0) {
-%                   price = MANAGER_QUERY_ROOM_PRICE(managerPtr, id);
-%               }
-%               break;
-%           default:
-%               assert(0);
-%       }
-%       if (price > maxPrices[t]) {
-%           maxPrices[t] = price;
-%           maxIds[t] = id;
-%           isFound = TRUE;
-%       }
-%   } /* for n */
-%   if (isFound) {
-%       MANAGER_ADD_CUSTOMER(managerPtr, customerId);
-%   }
-%   if (maxIds[RESERVATION_CAR] > 0) {
-%       MANAGER_RESERVE_CAR(managerPtr,
-%                           customerId, maxIds[RESERVATION_CAR]);
-%   }
-%   if (maxIds[RESERVATION_FLIGHT] > 0) {
-%       MANAGER_RESERVE_FLIGHT(managerPtr,
-%                               customerId, maxIds[RESERVATION_FLIGHT]);
-%   }
-%   if (maxIds[RESERVATION_ROOM] > 0) {
-%       MANAGER_RESERVE_ROOM(managerPtr,
-%                               customerId, maxIds[RESERVATION_ROOM]);
-%   }
-%   TM_END();
-%
+%    ?d("ids: ~p~n", [Ids]),
+%    ?d("types: ~p~n", [Types]),
+    fun() ->
+            do_make_reservation(Ids, Types, C)
+    end.
+
+do_make_reservation(Ids, Types, C) ->
+    Cars = [lists:nth(1, mnesia:read(car, Id)) || Id <- Ids],
+%    ?d("cars:~p~n", [Cars]),
+    Prices = [Car#car.price || Car <- Cars],
+%    ?d("prices:~p~n", [Prices]),
+    [H | T] = Cars,
+%    ?d("h: ~p~n", [H]),
+%    ?d("t: ~p~n", [T]),
+    Highest = lists:foldl(
+                fun(X, Max) 
+                      when  X#car.price > Max#car.price   -> X;
+                            (_, Max)                      -> Max
+                end, H, T),
+%    ?d("highest:~p~n", [Highest#car.n_free]),
+    case Highest#car.n_free of
+        Free when Free > 0 ->
+            Used = Highest#car.n_used,
+            NewCar = Highest#car{n_free=Free - 1,
+                                 n_used=Used + 1},
+            ?APPLY(mnesia, write, [NewCar]),
+            ?d("Reserved car:~p~n", [NewCar]);
+        Free when Free =< 0 ->
+            ?d("No free car:~p~n", [Highest]),
+            ok
+    end.
+
 elapsed(Before, After) ->
     erlang:convert_time_unit(After-Before, native, micro_seconds).
