@@ -4,6 +4,6 @@ Simplified vacation benchmark derived from STAMP benchmark suite implemented wit
 Usage
 -------
 
-  $ (make clean)
-  $ make 
-  $ make test
+    $ make clean
+    $ make 
+    $ make test
