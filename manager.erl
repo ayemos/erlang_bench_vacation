@@ -1,3 +1,5 @@
+%%% module - manager
+%%% Pupolate the datasets({car, customer, ...}) for benchmarks.
 -module(manager).
 -export([
          start/1,
@@ -6,20 +8,20 @@
 
          count_contention/1,
 
-         add_car/4
+         add_car/3
         ]).
 
 -include("bench.hrl").
 
 start(C) ->
-    ets:new(contention_count, [set]),
-    ets:new(activity_state, [set]),
+    ets:new(contention_count,   [set]),
+    ets:new(activity_state,     [set]),
     create_tables(C),
     Populate =
-	fun() ->
-		populate_car(write, C),
+    fun() ->
+        populate_car(write, C),
         populate_customer(write, C)
-	end,
+    end,
     mnesia:activity(sync_dirty, Populate, [], mnesia_frag),
     ok.
 
@@ -52,14 +54,14 @@ populate_car(Wlock, C) ->
     do_populate_car(Wlock, N - 1, C).
 
 do_populate_car(Wlock, Id, C) when Id >= 0 ->
-    add_car(Wlock, Id, rand:uniform(5) * 100, rand:uniform(5) * 10 + 50),
+    add_car(Id, rand:uniform(5) * 100, rand:uniform(5) * 10 + 50),
     do_populate_car(Wlock, Id - 1, C);
 do_populate_car(_Wlock, _, _) ->
     ?d(" totally ~p bytes~n", 
-	      [mnesia:table_info(car, memory) * 4]),
+       [mnesia:table_info(car, memory) * 4]),
     ok.
 
-add_car(Wlock, Id, Num, Price) ->
+add_car(Id, Num, Price) ->
     case mnesia:read({car, Id}) =:= [] of
         true ->
             % create new record
@@ -68,13 +70,20 @@ add_car(Wlock, Id, Num, Price) ->
                        n_used = 0,
                        n_free = Num,
                        price = Price},
-            ?APPLY(mnesia, write, [car, Car, Wlock]);
+            ?d("Adding car:~p~n", [Car]),
+            ?APPLY(mnesia, write, [Car]);
         false ->
             % update reservation
             Car = mnesia:read({car, Id}),
             Free = Car#car.n_free,
-            NewCar = #car{n_free = Free + Num},
-            ?APPLY(mnesia, write, [car, NewCar, Wlock])
+            ?d("Updating car:~p~n", [Car]),
+            if
+                Free + Num > 0 ->
+                    NewCar = #car{n_free = Free + Num},
+                    ?APPLY(mnesia, write, [NewCar]);
+                true ->
+                    ?APPLY(mnesia, delete, [Car])
+            end
     end.
 
 populate_customer(Wlock, C) ->
@@ -87,13 +96,13 @@ do_populate_customer(Wlock, Id, C) when Id >= 0 ->
     do_populate_customer(Wlock, Id - 1, C);
 do_populate_customer(_Wlock, _, _) ->
     ?d(" totally ~p bytes~n", 
-	      [mnesia:table_info(customer, memory) * 4]),
+       [mnesia:table_info(customer, memory) * 4]),
     ok.
 
 add_customer(Wlock, Id) ->
     Customer = #customer{id = Id, 
                          reservation_info_list = []},
-    ?APPLY(mnesia, write, [customer, Customer, Wlock]).
+    ?APPLY(mnesia, write, [Customer]).
 
 query_car(Id) ->
     mnesia:read({car, Id}).
@@ -108,5 +117,4 @@ count_contention([Word | Rest]) ->
     count_contention([Rest]);
 count_contention([]) ->
     ok.
-    
 

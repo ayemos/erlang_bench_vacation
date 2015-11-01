@@ -1,3 +1,6 @@
+%%% An implementation of vacation benchmark from STAMP benchmark 
+%%% suite(http://stamp.stanford.edu) written in Erlang.
+%%%
 -module(bench).
 -export([
          run/0,
@@ -16,7 +19,7 @@ run(Args) ->
     application:start(mnesia),
     mnesia:start(C#config.table_nodes),
     manager:start(C),
-    client:start(C).
+    client:run(C).
 
 %%% Private
 
