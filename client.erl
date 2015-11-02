@@ -1,7 +1,7 @@
 -module(client).
 -export([
          start/1,
-         run/1,
+         %         run/1,
 
          spawn_clients/3,
 
@@ -14,32 +14,32 @@
 
 -include("bench.hrl").
 
-start(C) when is_record(C, config) ->
-    MonPid = spawn_link(?MODULE, monitor_init, [C, self()]),
-    receive
-        {'EXIT', MonPid, Reason} ->
-            exit(Reason);
-        {monitor_done, MonPid, Res} ->
-            Res
-    end.
+%start(C) when is_record(C, config) ->
+%   MonPid = spawn_link(?MODULE, monitor_init, [C, self()]),
+%   receive
+%       {'EXIT', MonPid, Reason} ->
+%           exit(Reason);
+%       {monitor_done, MonPid, Res} ->
+%           Res
+%   end.
 
-monitor_init(C, Parent) when is_record(C, config) ->
-    process_flag(trap_exit, true),
-    %% net_kernel:monitor_nodes(true), %% BUGBUG: Needed in order to re-start generators
-    Nodes     = C#config.client_nodes,
-    PerNode   = C#config.n_generators_per_node,
-    Timer     = C#config.generator_warmup,
-    ?d("~n", []),
-    ?d("Start ~p request generators each at ~p nodes...~n",
-       [PerNode, length(Nodes)]),
-    ?d("~n", []),
-    warmup_sticky(C),
-    ?d("    ~p seconds warmup...~n", [Timer div 1000]),
-    Alive = spawn_generators(C, Nodes, PerNode),
-    erlang:send_after(Timer, self(), warmup_done),
-    monitor_loop(C, Parent, Alive, []).
+% monitor_init(C, Parent) when is_record(C, config) ->
+%   process_flag(trap_exit, true),
+%   %% net_kernel:monitor_nodes(true), %% BUGBUG: Needed in order to re-start generators
+%   Nodes     = C#config.client_nodes,
+%   PerNode   = C#config.n_generators_per_node,
+%   Timer     = C#config.generator_warmup,
+%   ?d("~n", []),
+%   ?d("Start ~p request generators each at ~p nodes...~n",
+%      [PerNode, length(Nodes)]),
+%   ?d("~n", []),
+%   warmup_sticky(C),
+%   ?d("    ~p seconds warmup...~n", [Timer div 1000]),
+%   Alive = spawn_generators(C, Nodes, PerNode),
+%   erlang:send_after(Timer, self(), warmup_done),
+%   monitor_loop(C, Parent, Alive, []).
 
-run(C) ->
+start(C) ->
     spawn_clients(C, C#config.client_nodes, C#config.n_tasks).
 
 spawn_clients(C, Nodes, PerNode) ->

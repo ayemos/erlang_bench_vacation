@@ -19,7 +19,7 @@ run(Args) ->
     application:start(mnesia),
     mnesia:start(C#config.table_nodes),
     manager:start(C),
-    client:run(C).
+    client:start(C).
 
 %%% Private
 
